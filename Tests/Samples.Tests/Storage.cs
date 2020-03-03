@@ -28,6 +28,13 @@ namespace Samples.Tests
 
         [Fact]
         [Trait("Samples", "Storage")]
+        public void NewManageStorageAccountTest()
+        {
+            ManageStorageAccountNew.Program.GetTest();
+        }
+
+        [Fact]
+        [Trait("Samples", "Storage")]
         public void ManageStorageAccountTestAsync()
         {
             RunSampleAsTest(
