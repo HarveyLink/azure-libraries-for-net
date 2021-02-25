@@ -65,6 +65,9 @@ function Clear-OutputStreams {
     $errorStream.Clear() | Out-Null
     $outputStream.Clear() | Out-Null
 }
+
+
+$csharpVersion = ''
 function launchProcess {
     param(
         [Parameter(Mandatory = $true)]
@@ -92,6 +95,17 @@ function launchProcess {
     # Display output produced by command invoked here in order to reduce the 
     # metadata logged. In case of errors however, we need to log them
     #>
+
+    #Write csharp extension version to metadata 
+    $stdout.Split("`n") | ForEach-Object {
+        if ($_ -match '@microsoft.azure/autorest.csharp') {
+            if ($_ -match '\>(.*?)\)') {
+                $csharpVersion = $Matches[0].Substring(1,$Matches[0].Length-2)
+                Write-InfoLog "Autorest CSharp Version: $csharpVersion"
+            }
+        }
+    }
+
     Write-Host $stdout 
     Write-ErrorLog $stderr
     if($p.ExitCode -ne 0)
@@ -281,6 +295,7 @@ function Start-MetadataGeneration {
         $ver = $ver.Trim()
     }
     Catch{}
+
     # collected all the metadata, now inject it into the SdkInfo_*.cs file
     if($generateSDKMetadata)
     {
@@ -297,6 +312,7 @@ function Start-MetadataGeneration {
             $metadataDict.Add("{{AutoRestVersion}}", $AutoRestVersion)
             $metadataDict.Add("{{AutoRestCmdExecuted}}", $AutoRestCommandExecuted)
             $metadataDict.Add("{{AutoRestBootStrapperVersion}}", $ver)
+            $metadataDict.Add("{{AutoRestCSharpVersion}}", $csharpVersion)
             $metadataTemplate = Populate-Metadata $metadataTemplate $metadataDict 
             $sdkInfo = Get-Content $sdkInfoFile -Raw
             if($sdkInfo -cmatch '(.*)\/\/ BEGIN: Code Generation Metadata Section(\n|.)*\/\/ END: Code Generation Metadata Section')
@@ -382,6 +398,9 @@ function Get-OutputStream {
 .PARAMETER SdkRepoRootPath
     Path to the SDK repo root where the SDK must be generated
 
+.PARAMETER ClearMetadataLog
+    Clear the metadata file log while generating the code if set to true, append the log if set to false. Value is true by default. 
+
 #>
 function Start-AutoRestCodeGeneration {
     [CmdletBinding(DefaultParameterSetName="sdkRootDir")]
@@ -424,17 +443,20 @@ function Start-AutoRestCodeGeneration {
         [string] $AutoRestCodeGenerationFlags,
 
         [Parameter(Mandatory = $false)]
-        [string] $SdkRepoRootPath
+        [string] $SdkRepoRootPath,
+
+        [Parameter(Mandatory = $false)]
+        [bool] $ClearMetadataLog = $true
     )
 
     if(-not [string]::IsNullOrWhiteSpace($SdkDirectory)) {
-        Start-CodeGeneration -ResourceProvider $ResourceProvider -SdkDirectory $SdkDirectory -Namespace $Namespace -ConfigFileTag $ConfigFileTag -SpecsRepoFork $SpecsRepoFork -SpecsRepoName $SpecsRepoName -SpecsRepoBranch $SpecsRepoBranch -SdkGenerationType $SdkGenerationType -AutoRestVersion $AutoRestVersion -AutoRestCodeGenerationFlags $AutoRestCodeGenerationFlags -SdkRepoRootPath $SdkRepoRootPath
+        Start-CodeGeneration -ResourceProvider $ResourceProvider -SdkDirectory $SdkDirectory -Namespace $Namespace -ConfigFileTag $ConfigFileTag -SpecsRepoFork $SpecsRepoFork -SpecsRepoName $SpecsRepoName -SpecsRepoBranch $SpecsRepoBranch -SdkGenerationType $SdkGenerationType -AutoRestVersion $AutoRestVersion -AutoRestCodeGenerationFlags $AutoRestCodeGenerationFlags -SdkRepoRootPath $SdkRepoRootPath -ClearMetadataLog $ClearMetadataLog
     }
     elseif (-not [string]::IsNullOrWhiteSpace($SdkRootDirectory)) {
-        Start-CodeGeneration -ResourceProvider $ResourceProvider -SdkRootDirectory $SdkRootDirectory -Namespace $Namespace -ConfigFileTag $ConfigFileTag -SpecsRepoFork $SpecsRepoFork -SpecsRepoName $SpecsRepoName -SpecsRepoBranch $SpecsRepoBranch -SdkGenerationType $SdkGenerationType -AutoRestVersion $AutoRestVersion -AutoRestCodeGenerationFlags $AutoRestCodeGenerationFlags -SdkRepoRootPath $SdkRepoRootPath
+        Start-CodeGeneration -ResourceProvider $ResourceProvider -SdkRootDirectory $SdkRootDirectory -Namespace $Namespace -ConfigFileTag $ConfigFileTag -SpecsRepoFork $SpecsRepoFork -SpecsRepoName $SpecsRepoName -SpecsRepoBranch $SpecsRepoBranch -SdkGenerationType $SdkGenerationType -AutoRestVersion $AutoRestVersion -AutoRestCodeGenerationFlags $AutoRestCodeGenerationFlags -SdkRepoRootPath $SdkRepoRootPath -ClearMetadataLog $ClearMetadataLog
     }
     elseif (-not [string]::IsNullOrWhiteSpace($SdkGenerationDirectory)){
-        Start-CodeGeneration -ResourceProvider $ResourceProvider -SdkGenerationDirectory $SdkGenerationDirectory -Namespace $Namespace -ConfigFileTag $ConfigFileTag -SpecsRepoFork $SpecsRepoFork -SpecsRepoName $SpecsRepoName -SpecsRepoBranch $SpecsRepoBranch -SdkGenerationType $SdkGenerationType -AutoRestVersion $AutoRestVersion -AutoRestCodeGenerationFlags $AutoRestCodeGenerationFlags -SdkRepoRootPath $SdkRepoRootPath
+        Start-CodeGeneration -ResourceProvider $ResourceProvider -SdkGenerationDirectory $SdkGenerationDirectory -Namespace $Namespace -ConfigFileTag $ConfigFileTag -SpecsRepoFork $SpecsRepoFork -SpecsRepoName $SpecsRepoName -SpecsRepoBranch $SpecsRepoBranch -SdkGenerationType $SdkGenerationType -AutoRestVersion $AutoRestVersion -AutoRestCodeGenerationFlags $AutoRestCodeGenerationFlags -SdkRepoRootPath $SdkRepoRootPath -ClearMetadataLog $ClearMetadataLog
     }
     else {
         # default path which is the root directory of the RP in sdk repo
@@ -451,7 +473,7 @@ function Start-AutoRestCodeGeneration {
             Write-Error "Could not find root for output directory since script is not run from SDK repo, please provide this using the -SdkRepoPath parameter!"
             return
         }
-        Start-CodeGeneration -ResourceProvider $ResourceProvider -SdkDirectory $SdkDirectory -Namespace $Namespace -ConfigFileTag $ConfigFileTag -SpecsRepoFork $SpecsRepoFork -SpecsRepoName $SpecsRepoName -SpecsRepoBranch $SpecsRepoBranch -SdkGenerationType $SdkGenerationType -AutoRestVersion $AutoRestVersion -AutoRestCodeGenerationFlags $AutoRestCodeGenerationFlags -SdkRepoRootPath $SdkRepoRootPath
+        Start-CodeGeneration -ResourceProvider $ResourceProvider -SdkDirectory $SdkDirectory -Namespace $Namespace -ConfigFileTag $ConfigFileTag -SpecsRepoFork $SpecsRepoFork -SpecsRepoName $SpecsRepoName -SpecsRepoBranch $SpecsRepoBranch -SdkGenerationType $SdkGenerationType -AutoRestVersion $AutoRestVersion -AutoRestCodeGenerationFlags $AutoRestCodeGenerationFlags -SdkRepoRootPath $SdkRepoRootPath -ClearMetadataLog $ClearMetadataLog
     }
 }
 
@@ -489,8 +511,12 @@ function Start-AutoRestCodeGeneration {
 
 .PARAMETER AutoRestCodeGenerationFlags
     Any additional flags that autorest needs to generate the code. Should be provided as " --flag1 --flag2 "
+
 .PARAMETER SdkRepoRootPath
     Path to the SDK repo root where the SDK must be generated
+
+.PARAMETER ClearLog
+    Clear the metadata file log while generating the code if set to true, append the log if set to false. Value is true by default. 
 
 #>
 function Start-AutoRestCodeGenerationWithLocalConfig {
@@ -519,10 +545,13 @@ function Start-AutoRestCodeGenerationWithLocalConfig {
         [string] $AutoRestCodeGenerationFlags,
 
         [Parameter(Mandatory = $false)]
-        [string] $SdkRepoRootPath
+        [string] $SdkRepoRootPath,
+ 
+        [Parameter(Mandatory = $false)]
+        [bool] $ClearMetadataLog = $true
     )
 
-    Start-CodeGeneration -ResourceProvider $ResourceProvider -LocalConfigFilePath $LocalConfigFilePath -SdkGenerationDirectory $SdkDirectory -Namespace $Namespace -ConfigFileTag $ConfigFileTag -AutoRestVersion $AutoRestVersion -AutoRestCodeGenerationFlags $AutoRestCodeGenerationFlags -SdkRepoRootPath $SdkRepoRootPath
+    Start-CodeGeneration -ResourceProvider $ResourceProvider -LocalConfigFilePath $LocalConfigFilePath -SdkGenerationDirectory $SdkDirectory -Namespace $Namespace -ConfigFileTag $ConfigFileTag -AutoRestVersion $AutoRestVersion -AutoRestCodeGenerationFlags $AutoRestCodeGenerationFlags -SdkRepoRootPath $SdkRepoRootPath -ClearMetadataLog $ClearMetadataLog
 }
 
 function Start-CodeGeneration {
@@ -540,17 +569,23 @@ function Start-CodeGeneration {
         [string] $LocalConfigFilePath,
         [string] $SdkGenerationType,
         [string] $AutoRestCodeGenerationFlags,
-        [string] $SdkRepoRootPath
+        [string] $SdkRepoRootPath,
+        [bool] $ClearMetadataLog = $true
     )
+
     # If repo root is provided, use that as the SDK root directory
     if(-not [string]::IsNullOrWhiteSpace($SdkRepoRootPath))
     {
-        $localSdkRepoDirectory = "$SdkRepoRootPath\SDKs"
+        $localSdkRepoDirectory = "$SdkRepoRootPath\sdk"
     }
     else
     {
         $localSdkRepoDirectory = Get-SdkRepoRootDirectory($(Get-InvokingScriptPath))
     }
+
+     # metadata directory name
+    $repoRootDirPath = [System.IO.Path]::GetDirectoryName($localSdkRepoDirectory)
+    $metadataDirName = "$repoRootDirPath\eng\mgmt\mgmtmetadata"
     
     # if config file comes from a private repo, fail immediately
     if ($SpecsRepoName.EndsWith("-pr")) {
@@ -570,12 +605,12 @@ function Start-CodeGeneration {
         New-Item -ItemType Directory -Path $localSdkRepoDirectory
     }
 
-    if(!(Test-Path -Path "$localSdkRepoDirectory\_metadata"))
+    if(!(Test-Path -Path "$metadataDirName"))
     {
-        New-Item -ItemType Directory -Path "$localSdkRepoDirectory\_metadata"
+        New-Item -ItemType Directory -Path "$metadataDirName"
     }
 
-    $logFile = "$localSdkRepoDirectory\_metadata\$($ResourceProvider.Replace("/","_").Replace('\','_')).txt"    
+    $logFile = "$metadataDirName\$($ResourceProvider.Replace("/","_").Replace('\','_')).txt"    
     if(!$(Test-Path -Path $logFile))
     {
         New-Item -Path $logFile -ItemType File
@@ -584,7 +619,7 @@ function Start-CodeGeneration {
     if(-not [string]::IsNullOrWhiteSpace($LocalConfigFilePath)) 
     {
         # if generating using a local config file, create an obscure temp log file, makes detection easier
-        Remove-Item "$localSdkRepoDirectory\_metadata\$($ResourceProvider.Replace("/","_")).txt" -ErrorAction SilentlyContinue
+        Remove-Item "$metadataDirName\$($ResourceProvider.Replace("/","_")).txt" -ErrorAction SilentlyContinue
         $logFile = [System.IO.Path]::GetTempFileName()+".txt";
         
         Write-Warning "!!!!!WARNING!!!!!!" 
@@ -622,7 +657,13 @@ function Start-CodeGeneration {
         Write-ErrorLog $_.ToString() 
     }
     finally {
-        Get-OutputStream | Out-File -FilePath $logFile -Encoding utf8 | Out-Null
+        if($ClearMetadataLog) {
+            Get-OutputStream | Out-File -FilePath $logFile -Encoding utf8 | Out-Null
+        }
+        else {
+            Get-OutputStream | Out-File -FilePath $logFile -Append -Encoding utf8 | Out-Null
+        }
+        
         $errors = Get-ErrorStream
         if(-not [string]::IsNullOrWhiteSpace($errors) -and $generateSDKMetadata)
         {
